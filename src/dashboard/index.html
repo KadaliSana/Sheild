@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SHIELD — AI-Powered Intrusion Detection Dashboard</title>
+<title>SHIELD - AI-Powered IDS Dashboard</title>
 <meta name="description" content="Real-time network intrusion detection dashboard with AI-powered threat analysis, TLS fingerprinting, and automated response"/>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap');
@@ -91,14 +91,6 @@
   }
   .stat-pill span { color: var(--text-bright); font-weight: 500; }
 
-  .test-btn {
-    font-family: var(--mono); font-size: 11px; cursor: pointer;
-    background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(59,130,246,0.15));
-    color: var(--purple); padding: 5px 14px; border-radius: 20px;
-    border: 1px solid rgba(168,85,247,0.25); transition: all .2s;
-  }
-  .test-btn:hover { background: linear-gradient(135deg, rgba(168,85,247,0.25), rgba(59,130,246,0.25)); border-color: rgba(168,85,247,0.4); transform: translateY(-1px); }
-  .test-btn:active { transform: translateY(0); }
 
   /* ── layout ── */
   .main { display: grid; grid-template-columns: 1fr 360px; gap: 0; height: calc(100vh - 57px); overflow: hidden; }
@@ -334,7 +326,7 @@
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
     <div class="stat-pill">Uptime: <span id="uptimeLabel">00:00:00</span></div>
     <div class="stat-pill">Blocked: <span id="blockedCount">0</span></div>
-    <button class="test-btn" onclick="fireTestTrigger()">⚡ Test Trigger</button>
+
   </div>
 </header>
 
@@ -775,16 +767,7 @@ async function fetchTLSStats() {
   } catch(e) {}
 }
 
-// ── test trigger ───────────────────────────────────────────────
-async function fireTestTrigger() {
-  const btn = document.querySelector('.test-btn');
-  btn.textContent = '⚡ Sending...';
-  btn.style.opacity = '0.6';
-  try {
-    await fetch(apiBase + '/test-trigger', {method: 'POST'});
-  } catch(e) { console.error('Test trigger failed:', e); }
-  setTimeout(() => { btn.textContent = '⚡ Test Trigger'; btn.style.opacity = '1'; }, 600);
-}
+
 
 // ── api integration ────────────────────────────────────────────
 
