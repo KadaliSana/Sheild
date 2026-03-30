@@ -1,25 +1,3 @@
-"""
-features/tls_fingerprint.py
-───────────────────────────
-TLS/JA3 fingerprinting engine for SHIELD IDS.
-
-Provides:
-    1. JA3 hash extraction from Zeek ssl.log fields
-    2. JA3S (server) fingerprint extraction
-    3. Threat-intel matching against known-malicious fingerprints
-    4. TLS version & cipher strength scoring
-    5. Certificate anomaly detection
-
-JA3 is a method for creating SSL/TLS client fingerprints by hashing
-specific fields from the ClientHello packet:
-    SSLVersion + Ciphers + Extensions + EllipticCurves + EllipticCurvePointFormats
-
-References:
-    - https://github.com/salesforce/ja3
-    - https://ja3er.com/
-    - Zeek's ja3.zeek policy script produces these fields automatically
-"""
-
 import hashlib
 import logging
 import time

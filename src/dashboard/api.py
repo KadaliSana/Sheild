@@ -42,9 +42,6 @@ _stats: dict[str, Any] = {
 _proto_counts: dict[str, int] = defaultdict(int)
 _ws_clients: list[WebSocket] = []
 
-
-# ── called by the main pipeline ───────────────────────────────────────────────
-
 def ingest_alert(alert_dict: dict):
     """Thread-safe: push a new alert into the API layer."""
     _recent_alerts.appendleft(alert_dict)

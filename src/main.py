@@ -1,26 +1,3 @@
-"""
-main.py
-───────
-SHIELD entry point. Wires together:
-    Zeek log reader → Feature extractor → Risk scorer → Alert handler
-
-Run modes
-─────────
-    python main.py --mode live      # tail live Zeek logs (default)
-    python main.py --mode train     # offline training on CICIDS dataset
-    python main.py --mode replay    # replay a saved conn.log for testing
-
-Usage
-─────
-    # 1. Start Zeek in a separate terminal:
-    zeek -i eth0 policy/protocols/ssl/ja3.zeek LogAscii::use_json=T
-
-    # 2. Start SHIELD:
-    python main.py --mode live
-
-    # 3. Open dashboard:
-    uvicorn dashboard.api:app --host 0.0.0.0 --port 8000
-"""
 
 import argparse
 import asyncio

@@ -1,19 +1,9 @@
-"""
-features/extractor.py
-─────────────────────
-Turns a merged Zeek flow dict into a fixed-length numeric feature vector 
-specifically formatted for models trained on the NF-UQ-NIDS-v2 dataset.
-
-Extracts exactly 39 features.
-"""
-
 import math
 import logging
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# ── NF-UQ-NIDS-v2 Feature Schema (Exactly 39 features) ───────────────────────
 FEATURE_NAMES = [
     "PROTOCOL", "L7_PROTO", "IN_BYTES", "IN_PKTS", "OUT_BYTES", "OUT_PKTS",
     "TCP_FLAGS", "CLIENT_TCP_FLAGS", "SERVER_TCP_FLAGS",
@@ -162,9 +152,7 @@ class FeatureExtractor:
             logger.warning(f"Feature extraction error: {exc}")
 
         return vec
-
-# ── batch extraction helper ───────────────────────────────────────────────────
-
+        
 def extract_dataframe(df):
     """
     Apply feature extraction to every row of a pandas DataFrame.

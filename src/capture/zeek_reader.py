@@ -14,9 +14,6 @@ from config.settings import (
 
 logger = logging.getLogger(__name__)
 
-
-# ── internal cache entry ──────────────────────────────────────────────────────
-
 class _CacheEntry:
     """Holds partial records while waiting for the matching log type."""
 
