@@ -95,7 +95,7 @@ class SHIELDPipeline:
             # update TLS fingerprinting stats for dashboard
             update_tls_stats(self.scorer.get_tls_stats())
             
-            if alert.attack_type == "Benign" or alert.risk_score < ALERT_THRESHOLD:
+            if alert.risk_score < ALERT_THRESHOLD:
                 time.sleep(0.02)  # Process at ~50 flows per second for UI animation
                 return
 
@@ -183,8 +183,15 @@ class SHIELDPipeline:
             logger.info(f"Original dataset: {total_rows_processed:,} rows.")
             logger.info(f"Actual Training RAM footprint: {len(df):,} rows.")
 
-            # 3. Define the Target (Label: 0 = Benign, 1 = Attack)
-            y = df['Label'].values.astype(int)
+            # 3. Multi-class attack labels from the 'Attack' column
+            from sklearn.preprocessing import LabelEncoder
+            le = LabelEncoder()
+            y_attack = le.fit_transform(df['Attack'].values)  # string → int
+            attack_label_map = {int(i): name for i, name in enumerate(le.classes_)}
+            logger.info(f"Attack categories ({len(attack_label_map)}): {list(le.classes_)}")
+
+            # Binary labels for unsupervised detectors (IsoForest, Statistical)
+            y_binary = df['Label'].values.astype(int)
 
             # 4. Drop Identifiers and Metadata
             columns_to_drop = [
@@ -209,12 +216,20 @@ class SHIELDPipeline:
             X = X_df.values.astype(np.float32)
 
             # 6. Split into Train/Test
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            X_train, X_test, y_attack_train, y_attack_test = train_test_split(
+                X, y_attack, test_size=0.2, random_state=42
+            )
+            # Also split binary labels in the same order for unsupervised models
+            y_binary_train = y_binary[X_train.shape[0] * 0 : len(y_binary)][:len(y_attack_train)]
+            # Recompute properly using same split
+            _, _, y_binary_train, _ = train_test_split(
+                X, y_binary, test_size=0.2, random_state=42
+            )
 
             logger.info(f"Training models on {len(X_train)} samples with {X_train.shape[1]} features...")
 
-            # 7. Train the models
-            self.scorer.fit_all(X_train, y_train) 
+            # 7. Train the models (multi-class RF + binary unsupervised)
+            self.scorer.fit_all(X_train, y_attack_train, y_binary_train, attack_label_map)
             
             # 8. Save the .joblib files
             self.scorer.save_models()

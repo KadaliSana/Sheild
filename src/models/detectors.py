@@ -114,7 +114,7 @@ class RandomForestDetector(BaseDetector):
         5=BruteForce, 6=WebAttack, 7=Heartbleed
     """
     name = "random_forest"
-    BENIGN_CLASS = 0
+    BENIGN_CLASS = 2  # default for NF-UQ-NIDS-v2 alphabetical encoding
 
     def __init__(
         self,
@@ -134,6 +134,7 @@ class RandomForestDetector(BaseDetector):
         )
         self._scaler = StandardScaler()
         self._classes: list[int] = []
+        self._attack_label_map: dict[int, str] = {}
         self._fitted = False
 
     def fit(self, X: np.ndarray, y: np.ndarray):
@@ -142,8 +143,13 @@ class RandomForestDetector(BaseDetector):
         Xs = self._scaler.fit_transform(X)
         self._model.fit(Xs, y)
         self._classes = list(self._model.classes_)
+        # Find the Benign class index from the label map
+        for cls_id, name in self._attack_label_map.items():
+            if name.lower() == "benign":
+                self.BENIGN_CLASS = cls_id
+                break
         self._fitted = True
-        logger.info("[%s] fit complete", self.name)
+        logger.info("[%s] fit complete (benign_class=%d)", self.name, self.BENIGN_CLASS)
 
     def score(self, feature_vec: np.ndarray) -> float:
         if not self._fitted:
@@ -162,6 +168,21 @@ class RandomForestDetector(BaseDetector):
         Xs = self._scaler.transform(feature_vec.reshape(1, -1))
         return int(self._model.predict(Xs)[0])
 
+    def predict_top_nonbenign(self, feature_vec: np.ndarray) -> int:
+        """Return the most likely non-Benign class from the probability distribution.
+        Used when the ensemble score indicates an anomaly but predict_class returns Benign."""
+        if not self._fitted:
+            return self.BENIGN_CLASS
+        Xs = self._scaler.transform(feature_vec.reshape(1, -1))
+        proba = self._model.predict_proba(Xs)[0]
+        # Mask out the benign class and pick the highest remaining
+        masked_proba = proba.copy()
+        if self.BENIGN_CLASS in self._classes:
+            benign_idx = self._classes.index(self.BENIGN_CLASS)
+            masked_proba[benign_idx] = -1.0
+        best_idx = int(np.argmax(masked_proba))
+        return self._classes[best_idx]
+
     def top_features(self, n: int = 5) -> list[tuple[str, float]]:
         """Return top-n feature importances (for SHAP fallback)."""
         from features.extractor import FEATURE_NAMES
@@ -177,6 +198,7 @@ class RandomForestDetector(BaseDetector):
             "model": self._model,
             "scaler": self._scaler,
             "classes": self._classes,
+            "attack_label_map": self._attack_label_map,
         }, RF_MODEL_PATH)
         logger.info("[%s] saved to %s", self.name, RF_MODEL_PATH)
 
@@ -188,8 +210,14 @@ class RandomForestDetector(BaseDetector):
         self._model   = bundle["model"]
         self._scaler  = bundle["scaler"]
         self._classes = bundle["classes"]
+        self._attack_label_map = bundle.get("attack_label_map", {})
+        # Resolve benign class from label map
+        for cls_id, name in self._attack_label_map.items():
+            if name.lower() == "benign":
+                self.BENIGN_CLASS = cls_id
+                break
         self._fitted  = True
-        logger.info("[%s] loaded from %s", self.name, RF_MODEL_PATH)
+        logger.info("[%s] loaded from %s (%d classes, benign=%d)", self.name, RF_MODEL_PATH, len(self._classes), self.BENIGN_CLASS)
 
     def is_ready(self) -> bool:
         return self._fitted

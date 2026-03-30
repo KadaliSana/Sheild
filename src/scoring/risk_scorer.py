@@ -27,10 +27,31 @@ from features.tls_fingerprint import TLSFingerprintEngine
 
 logger = logging.getLogger(__name__)
 
-# ── Binary Labels (Mapped to NF-UQ-NIDS 'Label' column) ───────────────────────
+# ── Multi-class Attack Labels (from NF-UQ-NIDS-v2 'Attack' column) ────────────
+# These are populated at training time via LabelEncoder. The static fallback
+# below covers the known categories in alphabetical order (sklearn default).
 ATTACK_LABELS = {
-    0: "Benign",
-    1: "Malicious Flow Detected"
+    0: "Analysis",
+    1: "Backdoor",
+    2: "Benign",
+    3: "Bot",
+    4: "Brute Force",
+    5: "DDoS",
+    6: "DoS",
+    7: "Exploits",
+    8: "Fuzzers",
+    9: "Generic",
+    10: "Infilteration",
+    11: "Reconnaissance",
+    12: "Shellcode",
+    13: "Theft",
+    14: "Worms",
+    15: "Injection",
+    16: "Man-in-the-Middle",
+    17: "Password Attack",
+    18: "Ransomware",
+    19: "Port Scan",
+    20: "XSS",
 }
 
 # ── severity bands ────────────────────────────────────────────────────────────
@@ -155,6 +176,9 @@ class RiskScorer:
         self._weights = ENSEMBLE_WEIGHTS
         self._shap_explainer = None
         
+        # Multi-class label map (populated from training or model load)
+        self._attack_label_map: dict[int, str] = {}
+        
         # TLS Fingerprinting Engine
         self._tls_engine = TLSFingerprintEngine()
 
@@ -166,6 +190,10 @@ class RiskScorer:
                 det.load()
             except Exception as exc:
                 logger.warning("Could not load %s: %s", det.name, exc)
+        # Restore the attack label map from the RF model bundle
+        if self._rf._attack_label_map:
+            self._attack_label_map = self._rf._attack_label_map
+            logger.info("Loaded %d attack categories from RF model", len(self._attack_label_map))
 
     def save_models(self):
         for det in (self._iso, self._rf, self._transformer, self._stat):
@@ -174,23 +202,34 @@ class RiskScorer:
             except Exception as exc:
                 logger.warning("Could not save %s: %s", det.name, exc)
 
-    def fit_all(self, X: np.ndarray, y: np.ndarray):
+    def fit_all(self, X: np.ndarray, y_attack: np.ndarray, 
+                y_binary: np.ndarray = None, attack_label_map: dict = None):
         """
-        Train all models. Automatically separates normal traffic for 
-        unsupervised models (Isolation Forest/Statistical).
+        Train all models.
+        - y_attack: multi-class integer labels (from LabelEncoder on 'Attack' column)
+        - y_binary: binary 0/1 labels for unsupervised anomaly detectors
+        - attack_label_map: {int: str} mapping class index → attack name
         """
+        if y_binary is None:
+            # Fallback: treat 0 class as benign
+            y_binary = (y_attack != 0).astype(int)
+        
+        if attack_label_map:
+            self._attack_label_map = attack_label_map
+            self._rf._attack_label_map = attack_label_map  # persist with the model
+        
         logger.info("Splitting dataset for Unsupervised vs Supervised training...")
         
-        # Isolate Benign traffic (Label == 0) for the anomaly detectors
-        normal_mask = (y == 0)
+        # Isolate Benign traffic (binary Label == 0) for the anomaly detectors
+        normal_mask = (y_binary == 0)
         X_normal = X[normal_mask]
 
         logger.info(f"Training Anomaly Detectors on {len(X_normal)} benign samples...")
         self._iso.fit(X_normal)
         self._stat.fit(X_normal)
         
-        logger.info(f"Training Random Forest on full {len(X)} samples...")
-        self._rf.fit(X, y)
+        logger.info(f"Training Random Forest (multi-class) on {len(X)} samples, {len(set(y_attack))} classes...")
+        self._rf.fit(X, y_attack)
         
         logger.info("All models trained successfully.")
 
@@ -231,9 +270,17 @@ class RiskScorer:
             ja3_blocked = True
             risk_score = 100
 
-        # 4. Attack Classification
+        # 4. Attack Classification (multi-class)
         atk_class = self._rf.predict_class(feature_vec)
-        attack_type = ATTACK_LABELS.get(atk_class, "Unknown Anomaly")
+        # Prefer the dynamically loaded label map, fall back to static dict
+        label_map = self._attack_label_map if self._attack_label_map else ATTACK_LABELS
+        attack_type = label_map.get(atk_class, "Unknown Anomaly")
+        
+        # If RF says Benign but ensemble score is high, use the next-best class
+        # This handles domain-shift between training data and live Zeek features
+        if attack_type == "Benign" and risk_score >= ALERT_THRESHOLD:
+            alt_class = self._rf.predict_top_nonbenign(feature_vec)
+            attack_type = label_map.get(alt_class, "Anomalous Flow")
 
         # 5. SHAP Explainability
         shap_values = self._rf.top_features(n=3)

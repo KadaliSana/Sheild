@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from collections import defaultdict
 
-from config.settings import JA3_BLOCKLIST
+from config.settings import JA3_BLOCKLIST, JA3_THREAT_NAMES
 from intel.abuse_ch import update_ja3_blacklist
 
 logger = logging.getLogger(__name__)
@@ -80,13 +80,14 @@ JA3_THREAT_DB: dict[str, dict] = {
     },
 }
 
-# Merge with config-defined blocklist
+# Merge with config-defined blocklist (with proper malware family names)
 for ja3_hash in JA3_BLOCKLIST:
     if ja3_hash not in JA3_THREAT_DB:
+        malware_name = JA3_THREAT_NAMES.get(ja3_hash, "Custom Blocklist")
         JA3_THREAT_DB[ja3_hash] = {
-            "malware": "Custom Blocklist",
-            "severity": "high",
-            "description": "Matched user-configured JA3 blocklist entry",
+            "malware": malware_name,
+            "severity": "critical",
+            "description": f"Matched abuse.ch SSLBL — {malware_name}",
         }
 
 # Merge with Abuse.ch blacklist
