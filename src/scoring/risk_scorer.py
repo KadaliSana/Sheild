@@ -2,7 +2,8 @@
 scoring/risk_scorer.py
 ──────────────────────
 Fuses the four detector scores into a single 0–100 risk score,
-runs SHAP for explainability, and produces a structured Alert.
+runs SHAP for explainability, performs TLS fingerprint analysis,
+and produces a structured Alert.
 Updated for NF-UQ-NIDS NetFlow architecture.
 """
 
@@ -22,6 +23,7 @@ from models.detectors import (
     LSTMDetector,
     StatisticalDetector,
 )
+from features.tls_fingerprint import TLSFingerprintEngine
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +64,14 @@ class Alert:
     shap_values:     list[tuple[str, float]] = field(default_factory=list)  # top-5
     plain_language:  str = ""
 
-    # TLS Threat Intel (For the Hackathon Brownie Points)
-    ja3_hash:    Optional[str] = None
-    ja3_blocked: bool = False
+    # TLS Threat Intel
+    ja3_hash:       Optional[str] = None
+    ja3s_hash:      Optional[str] = None
+    ja3_blocked:    bool = False
+    tls_version:    Optional[str] = None
+    tls_risk_score: float = 0.0
+    tls_risk_factors: list = field(default_factory=list)
+    tls_threat_name: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -81,25 +88,61 @@ class Alert:
             "top_features": self.shap_values,
             "explanation":  self.plain_language,
             "ja3":          self.ja3_hash,
+            "ja3s":         self.ja3s_hash,
             "ja3_blocked":  self.ja3_blocked,
+            "tls_version":  self.tls_version,
+            "tls_risk_score": round(self.tls_risk_score, 3),
+            "tls_risk_factors": self.tls_risk_factors,
+            "tls_threat":   self.tls_threat_name,
         }
 
 # ── plain-language templates ──────────────────────────────────────────────────
 
 def _plain_language(alert: Alert) -> str:
+    if alert.ja3_blocked and alert.tls_threat_name:
+        return (
+            f"CRITICAL: Device {alert.src_ip} used a TLS fingerprint (JA3) "
+            f"matching known malware '{alert.tls_threat_name}'. "
+            f"Connection to {alert.dst_ip} was flagged for immediate blocking."
+        )
+    
     if alert.ja3_blocked:
-        return f"CRITICAL: Device {alert.src_ip} used an encrypted connection (JA3) identical to known malware. Blocked immediately."
+        return (
+            f"CRITICAL: Device {alert.src_ip} used an encrypted connection "
+            f"(JA3) identical to known malware. Blocked immediately."
+        )
+    
+    if alert.tls_risk_factors:
+        tls_detail = "; ".join(alert.tls_risk_factors[:2])
+        if alert.risk_score > 85:
+            return (
+                f"High-confidence threat from {alert.src_ip} → {alert.dst_ip}. "
+                f"TLS analysis: {tls_detail}. "
+                f"Network behavior strongly indicates an automated attack."
+            )
+        return (
+            f"Suspicious activity from {alert.src_ip} → {alert.dst_ip} "
+            f"(Risk: {alert.risk_score}). TLS indicators: {tls_detail}."
+        )
     
     if alert.risk_score > 85:
-        return f"High-confidence anomaly detected from {alert.src_ip} to {alert.dst_ip}. Traffic volume and timing strongly indicate an automated attack."
+        return (
+            f"High-confidence anomaly detected from {alert.src_ip} to "
+            f"{alert.dst_ip}. Traffic volume and timing strongly indicate "
+            f"an automated attack."
+        )
         
-    return f"Suspicious network behavior detected from {alert.src_ip} to {alert.dst_ip} (Risk Score: {alert.risk_score})."
+    return (
+        f"Suspicious network behavior detected from {alert.src_ip} "
+        f"to {alert.dst_ip} (Risk Score: {alert.risk_score})."
+    )
 
 # ── main scorer ───────────────────────────────────────────────────────────────
 
 class RiskScorer:
     """
-    Orchestrates the detectors and produces Alert objects.
+    Orchestrates the ML detectors and TLS fingerprint engine,
+    then produces Alert objects with full explainability.
     """
 
     def __init__(self):
@@ -108,14 +151,12 @@ class RiskScorer:
         self._lstm = LSTMDetector()
         self._stat = StatisticalDetector()
         
-        # Default fallback weights if config is missing
-        self._weights = getattr(ENSEMBLE_WEIGHTS, "weights", {
-            "isolation_forest": 0.2,
-            "random_forest": 0.6,
-            "lstm": 0.0,
-            "statistical": 0.2
-        })
-        self._shap_explainer = None 
+        # Use weights from config (it's already a dict)
+        self._weights = ENSEMBLE_WEIGHTS
+        self._shap_explainer = None
+        
+        # TLS Fingerprinting Engine
+        self._tls_engine = TLSFingerprintEngine()
 
     # ── lifecycle ─────────────────────────────────────────────────────────────
 
@@ -172,40 +213,63 @@ class RiskScorer:
         )
         risk_score = int(np.clip(fused * 100, 0, 100))
 
-        # 3. The Threat Intel Bypass (JA3 Hash Check)
-        ja3 = flow.get("JA3_HASH", "")
-        ja3_blocked = False
-        if ja3 and ja3 in JA3_BLOCKLIST:
-            ja3_blocked = True
-            risk_score = max(risk_score, 100) # Instant max risk
+        # 3. TLS Fingerprint Analysis
+        tls_fp = self._tls_engine.analyze(flow)
+        
+        ja3_blocked = tls_fp.is_malicious
+        if tls_fp.tls_risk_score > 0:
+            # Blend TLS risk into the overall score (max 30 point boost)
+            tls_boost = int(tls_fp.tls_risk_score * 30)
+            risk_score = min(100, risk_score + tls_boost)
+        
+        if ja3_blocked:
+            risk_score = 100  # Instant max risk for known malware JA3
 
-        if risk_score < ALERT_THRESHOLD:
-            return None
+        # Also check the legacy JA3 field for backward compat
+        legacy_ja3 = flow.get("JA3_HASH", "")
+        if legacy_ja3 and legacy_ja3 in JA3_BLOCKLIST and not ja3_blocked:
+            ja3_blocked = True
+            risk_score = 100
 
         # 4. Attack Classification
         atk_class = self._rf.predict_class(feature_vec)
         attack_type = ATTACK_LABELS.get(atk_class, "Unknown Anomaly")
 
-        # 5. SHAP Explainability (Disabled for Hackathon Speed unless specifically configured)
+        # 5. SHAP Explainability
         shap_values = self._rf.top_features(n=3)
 
         # 6. Build the Alert (Mapped to NetFlow Keys)
+        ts_val = flow.get("ts", time.time())
+        if hasattr(ts_val, "timestamp"):
+            timestamp = float(ts_val.timestamp())
+        else:
+            timestamp = float(ts_val)
+
         alert = Alert(
             uid         = str(flow.get("uid", time.time())),
-            timestamp   = float(flow.get("ts", time.time())),
-            src_ip      = str(flow.get("IPV4_SRC_ADDR", "Unknown")),
-            dst_ip      = str(flow.get("IPV4_DST_ADDR", "Unknown")),
-            src_port    = int(flow.get("L4_SRC_PORT", 0)),
-            dst_port    = int(flow.get("L4_DST_PORT", 0)),
-            proto       = str(flow.get("PROTOCOL", "")),
+            timestamp   = timestamp,
+            src_ip      = str(flow.get("IPV4_SRC_ADDR") or flow.get("id.orig_h", "Unknown")),
+            dst_ip      = str(flow.get("IPV4_DST_ADDR") or flow.get("id.resp_h", "Unknown")),
+            src_port    = int(flow.get("L4_SRC_PORT") or flow.get("id.orig_p", 0)),
+            dst_port    = int(flow.get("L4_DST_PORT") or flow.get("id.resp_p", 0)),
+            proto       = str(flow.get("PROTOCOL") or flow.get("proto", "")),
             risk_score  = risk_score,
             severity    = _severity(risk_score),
             attack_type = attack_type,
             should_block= risk_score >= BLOCK_THRESHOLD,
             scores      = {k: round(v, 3) for k, v in scores.items()},
             shap_values = shap_values,
-            ja3_hash    = str(ja3) if ja3 else None,
+            ja3_hash    = tls_fp.ja3_hash or (str(legacy_ja3) if legacy_ja3 else None),
+            ja3s_hash   = tls_fp.ja3s_hash,
             ja3_blocked = ja3_blocked,
+            tls_version = tls_fp.tls_version,
+            tls_risk_score = tls_fp.tls_risk_score,
+            tls_risk_factors = tls_fp.risk_factors,
+            tls_threat_name = tls_fp.threat_name,
         )
         alert.plain_language = _plain_language(alert)
         return alert
+
+    def get_tls_stats(self) -> dict:
+        """Expose TLS fingerprinting statistics for the dashboard."""
+        return self._tls_engine.get_stats()

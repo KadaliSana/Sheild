@@ -24,6 +24,8 @@ Usage
 
 import argparse
 import asyncio
+import uvicorn
+from dashboard.api import app
 import pandas as pd
 import logging
 import signal
@@ -34,13 +36,12 @@ from pathlib import Path
 
 import numpy as np
 from sklearn.model_selection import train_test_split
-import sys
 
 from capture.zeek_reader import ZeekFlowReader, load_conn_dataframe, load_ssl_dataframe, merge_conn_ssl
 from features.extractor import FeatureExtractor, extract_dataframe
 from scoring.risk_scorer import RiskScorer
 from response.auto_block import handle_alert
-from dashboard.api import ingest_alert, increment_flow_counter, broadcast_alert
+from dashboard.api import ingest_alert, ingest_flow, increment_flow_counter, broadcast_alert, broadcast_flow, update_tls_stats
 from config.settings import ALERT_THRESHOLD
 
 logging.basicConfig(
@@ -81,29 +82,47 @@ class SHIELDPipeline:
             if alert is None:
                 return
 
-            logger.warning(
-                "ALERT [%s] %s → %s | score=%d | %s",
-                alert.severity.upper(),
-                alert.src_ip, alert.dst_ip,
-                alert.risk_score,
-                alert.attack_type,
-            )
-            logger.info("  Explanation: %s", alert.plain_language)
-            logger.info("  Top features: %s", alert.shap_values[:3])
-
             alert_dict = alert.to_dict()
 
-            # push to API layer
-            ingest_alert(alert_dict)
+            # Build flow record for the traffic table
+            is_malicious = alert.attack_type != "Benign" and alert.risk_score >= ALERT_THRESHOLD
+            dur_val = flow.get("duration") or 0
+            if hasattr(dur_val, "total_seconds"):
+                dur_float = dur_val.total_seconds()
+            else:
+                dur_float = float(dur_val)
+            dur_ms = round(dur_float * 1000, 1)
 
-            # async broadcast to WebSocket clients
+            flow_record = {
+                "uid":         alert_dict.get("uid", ""),
+                "timestamp":   alert_dict.get("timestamp", time.time()),
+                "src":         alert_dict.get("src", "?"),
+                "dst":         alert_dict.get("dst", "?"),
+                "proto":       alert_dict.get("proto", ""),
+                "bytes_in":    int(flow.get("orig_ip_bytes") or flow.get("orig_bytes") or 0),
+                "bytes_out":   int(flow.get("resp_ip_bytes") or flow.get("resp_bytes") or 0),
+                "packets_in":  int(flow.get("orig_pkts") or 0),
+                "packets_out": int(flow.get("resp_pkts") or 0),
+                "duration_ms": dur_ms,
+                "attack_type": alert.attack_type,
+                "risk_score":  alert.risk_score,
+                "severity":    alert.severity,
+                "is_malicious": is_malicious,
+            }
+            ingest_flow(flow_record)
             if self._loop and self._loop.is_running():
                 asyncio.run_coroutine_threadsafe(
-                    broadcast_alert(alert_dict), self._loop
+                    broadcast_flow(flow_record), self._loop
                 )
 
-            # automated response
-            handle_alert(alert)
+            # update TLS fingerprinting stats for dashboard
+            update_tls_stats(self.scorer.get_tls_stats())
+            
+            if alert.attack_type == "Benign" or alert.risk_score < ALERT_THRESHOLD:
+                time.sleep(0.02)  # Process at ~50 flows per second for UI animation
+                return
+            
+            time.sleep(0.02)  # Process at ~50 flows per second for UI animation
 
         except Exception as exc:
             logger.error("Pipeline error: %s", exc, exc_info=True)
@@ -117,8 +136,6 @@ class SHIELDPipeline:
             conn_log=str(conn_log),
             ssl_log=str(ssl_log)
         )
-        reader.start()
-
         reader.start()
         # set up asyncio loop for WebSocket broadcasts
         self._loop = asyncio.new_event_loop()
@@ -142,8 +159,7 @@ class SHIELDPipeline:
         logger.info("Dashboard API: http://localhost:8000")
 
         # keep main thread alive by running the dashboard API
-        import uvicorn
-        from dashboard.api import app
+
         uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
 
     # ── training mode ─────────────────────────────────────────────────────────
@@ -255,8 +271,8 @@ def main():
     parser.add_argument("--csv-path", default="data/NF-UQ-NIDS-v2.csv",
                         help="Path to the NetFlow CSV dataset for training")
 
-    parser.add_argument("--conn-log",   default="src/models/data/conn.log")
-    parser.add_argument("--ssl-log",    default="src/models/data/ssl.log")
+    parser.add_argument("--conn-log",   default="models/data/conn.log")
+    parser.add_argument("--ssl-log",    default="models/data/ssl.log")
     
     args = parser.parse_args()
 

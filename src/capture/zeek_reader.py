@@ -34,14 +34,20 @@ class _CacheEntry:
 
     def __init__(self, record: dict, source: str):
         self.records: dict[str, dict] = {source: record}
-        self.ts: float = time.monotonic()
+        self.first_seen: float = time.monotonic()
+        self.last_seen: float = time.monotonic()
 
     def add(self, record: dict, source: str):
         self.records[source] = record
-        self.ts = time.monotonic()
+        self.last_seen = time.monotonic()
 
-    def is_expired(self, ttl: float) -> bool:
-        return (time.monotonic() - self.ts) > ttl
+    def is_stale(self, ttl: float) -> bool:
+        """True if the entry has been sitting too long without any updates."""
+        return (time.monotonic() - self.last_seen) > ttl
+
+    def is_ready(self, delay: float) -> bool:
+        """True if we have the primary record and waited long enough for sides."""
+        return "conn" in self.records and (time.monotonic() - self.first_seen) > delay
 
 
 # ── main reader class ─────────────────────────────────────────────────────────
@@ -150,32 +156,39 @@ class ZeekFlowReader:
     def _tail_log(self, path: Path, source: str, fields: set[str]):
         """Continuously tail a single Zeek log file."""
         logger.info("[%s] starting tail of %s", source, path)
-        reader = ZeekLogReader(str(path), tail=True)
+        
+        while not self._stop_event.is_set():
+            try:
+                reader = ZeekLogReader(str(path), tail=True)
+                for raw_row in reader.readrows():
+                    if self._stop_event.is_set():
+                        break
 
-        try:
-            for raw_row in reader.readrows():
-                if self._stop_event.is_set():
-                    break
-
-                # filter to only the fields we need
-                row = {k: v for k, v in raw_row.items() if k in fields}
-                uid = row.get("uid")
-                if not uid:
-                    continue
-
-                # skip noise
-                if source == "conn":
-                    pkts = (row.get("orig_pkts") or 0) + (row.get("resp_pkts") or 0)
-                    if pkts < MIN_PKTS_THRESHOLD:
+                    # filter to only the fields we need
+                    row = {k: v for k, v in raw_row.items() if k in fields}
+                    uid = row.get("uid")
+                    if not uid:
                         continue
 
-                self._ingest(uid, row, source)
+                    # skip noise
+                    if source == "conn":
+                        pkts = (row.get("orig_pkts") or 0) + (row.get("resp_pkts") or 0)
+                        if pkts < MIN_PKTS_THRESHOLD:
+                            continue
 
-        except Exception as exc:
-            logger.error("[%s] reader error: %s", source, exc, exc_info=True)
+                    self._ingest(uid, row, source)
+                
+                # If reader gracefully exits (e.g. file truncated), sleep before retry
+                time.sleep(2)
+            except Exception as exc:
+                if not getattr(self, '_notified_'+source, False):
+                    logger.warning("[%s] Waiting for valid TSV log file at %s", source, path)
+                    setattr(self, '_notified_'+source, True)
+                time.sleep(2)
 
     def _ingest(self, uid: str, row: dict, source: str):
-        """Add a record to the cache; emit if conn + ssl are both present."""
+        """Add a record to the cache; emit immediately if both conn and ssl are ready."""
+        flow_to_emit = None
         with self._lock:
             if uid not in self._cache:
                 self._cache[uid] = _CacheEntry(row, source)
@@ -183,14 +196,13 @@ class ZeekFlowReader:
                 self._cache[uid].add(row, source)
 
             entry = self._cache[uid]
-
-            # emit as soon as we have at least conn (ssl optional for non-TLS)
-            if "conn" in entry.records:
-                flow = self._build_flow(entry)
+            # Fast-path: if we have both, no need to wait
+            if "conn" in entry.records and "ssl" in entry.records:
+                flow_to_emit = self._build_flow(entry)
                 del self._cache[uid]
-                # release lock before calling user callback
-        if "conn" in entry.records:
-            self._emit(flow)
+
+        if flow_to_emit:
+            self._emit(flow_to_emit)
 
     def _build_flow(self, entry: "_CacheEntry") -> dict:
         """Merge all partial records into a single flat flow dict."""
@@ -223,25 +235,33 @@ class ZeekFlowReader:
             logger.error("on_flow callback raised: %s", exc, exc_info=True)
 
     def _gc_loop(self):
-        """Periodically evict stale cache entries (flows with no ssl match)."""
-        while not self._stop_event.wait(timeout=30):
+        """
+        Periodically:
+        1. Evict and emit conn-only flows after a short coalescing delay (2s).
+        2. Evict very stale entries (30s) that never got a conn record.
+        """
+        coalesce_delay = 2.0  # seconds to wait for sidecar logs
+        while not self._stop_event.wait(timeout=1.0):
+            flows_to_emit = []
             with self._lock:
-                stale = [
-                    uid for uid, entry in self._cache.items()
-                    if entry.is_expired(self._ttl)
-                ]
-                for uid in stale:
-                    entry = self._cache.pop(uid)
-                    # emit conn-only flows (non-TLS traffic) after TTL
-                    if "conn" in entry.records:
-                        flow = self._build_flow(entry)
-                        self._threads  # still in lock — schedule emit outside
-                        threading.Thread(
-                            target=self._emit, args=(flow,), daemon=True
-                        ).start()
+                to_remove = []
+                for uid, entry in self._cache.items():
+                    # Case 1: conn is ready and we've waited enough for ssl/dns
+                    if entry.is_ready(coalesce_delay):
+                        flows_to_emit.append(self._build_flow(entry))
+                        to_remove.append(uid)
+                    # Case 2: stale (no update for 30s) - just drop/cleanup
+                    elif entry.is_stale(self._ttl):
+                        to_remove.append(uid)
 
-            if stale:
-                logger.debug("GC evicted %d stale uid entries", len(stale))
+                for uid in to_remove:
+                    self._cache.pop(uid, None)
+
+            for flow in flows_to_emit:
+                self._emit(flow)
+
+            if flows_to_emit:
+                logger.debug("GC emitted %d coalesced flows", len(flows_to_emit))
 
 
 # ── convenience: batch loader (for training / offline analysis) ───────────────

@@ -3,31 +3,41 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SHIELD — Intrusion Detection Dashboard</title>
+<title>SHIELD — AI-Powered Intrusion Detection Dashboard</title>
+<meta name="description" content="Real-time network intrusion detection dashboard with AI-powered threat analysis, TLS fingerprinting, and automated response"/>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
   :root {
-    --bg: #0a0d12;
-    --surface: #111520;
-    --surface2: #161c2a;
-    --border: rgba(255,255,255,0.07);
-    --border-hi: rgba(255,255,255,0.14);
+    --bg: #060a10;
+    --surface: #0d1117;
+    --surface2: #151b27;
+    --surface3: #1a2233;
+    --border: rgba(255,255,255,0.06);
+    --border-hi: rgba(255,255,255,0.12);
+    --border-glow: rgba(99,179,237,0.15);
     --text: #e2e8f0;
+    --text-bright: #f1f5f9;
     --muted: #64748b;
     --dimmer: #3a4560;
     --green: #10b981;
-    --green-dim: rgba(16,185,129,0.12);
+    --green-dim: rgba(16,185,129,0.1);
+    --green-glow: rgba(16,185,129,0.25);
     --amber: #f59e0b;
-    --amber-dim: rgba(245,158,11,0.12);
+    --amber-dim: rgba(245,158,11,0.1);
     --red: #ef4444;
-    --red-dim: rgba(239,68,68,0.12);
+    --red-dim: rgba(239,68,68,0.08);
+    --red-glow: rgba(239,68,68,0.2);
     --blue: #3b82f6;
-    --blue-dim: rgba(59,130,246,0.12);
+    --blue-dim: rgba(59,130,246,0.1);
     --purple: #a855f7;
-    --purple-dim: rgba(168,85,247,0.12);
+    --purple-dim: rgba(168,85,247,0.1);
+    --cyan: #06b6d4;
+    --cyan-dim: rgba(6,182,212,0.1);
     --mono: 'IBM Plex Mono', monospace;
     --sans: 'DM Sans', sans-serif;
+    --glass: rgba(13,17,23,0.75);
+    --glass-border: rgba(255,255,255,0.08);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -43,119 +53,208 @@
   /* ── header ── */
   header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 24px;
+    padding: 12px 24px;
     border-bottom: 1px solid var(--border);
-    background: var(--surface);
+    background: linear-gradient(180deg, rgba(13,17,23,0.98) 0%, rgba(13,17,23,0.92) 100%);
+    backdrop-filter: blur(20px);
     position: sticky; top: 0; z-index: 100;
   }
-  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo { display: flex; align-items: center; gap: 12px; }
   .logo-mark {
-    width: 32px; height: 32px; border-radius: 8px;
-    background: linear-gradient(135deg, var(--blue) 0%, var(--purple) 100%);
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #a855f7 100%);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--mono); font-weight: 500; font-size: 13px; color: #fff;
+    font-family: var(--mono); font-weight: 500; font-size: 12px; color: #fff;
+    box-shadow: 0 0 20px rgba(139,92,246,0.3);
+    position: relative;
   }
-  .logo-text { font-weight: 600; font-size: 15px; letter-spacing: 0.05em; }
+  .logo-mark::after {
+    content: ''; position: absolute; inset: -2px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(59,130,246,0.4), rgba(168,85,247,0.4));
+    z-index: -1; filter: blur(8px);
+  }
+  .logo-text { font-weight: 700; font-size: 16px; letter-spacing: 0.06em; color: var(--text-bright); }
   .logo-sub { font-size: 11px; color: var(--muted); font-weight: 300; }
-  .header-right { display: flex; align-items: center; gap: 16px; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
   .live-badge {
     display: flex; align-items: center; gap: 6px;
     font-family: var(--mono); font-size: 11px; color: var(--green);
-    background: var(--green-dim); padding: 4px 10px; border-radius: 20px;
+    background: var(--green-dim); padding: 5px 12px; border-radius: 20px;
     border: 1px solid rgba(16,185,129,0.2);
   }
   .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 1.5s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.4)} }
   .stat-pill {
     font-family: var(--mono); font-size: 11px; color: var(--muted);
-    background: var(--surface2); padding: 4px 10px; border-radius: 20px;
+    background: var(--surface2); padding: 5px 12px; border-radius: 20px;
     border: 1px solid var(--border);
   }
-  .stat-pill span { color: var(--text); font-weight: 500; }
+  .stat-pill span { color: var(--text-bright); font-weight: 500; }
+
+  .test-btn {
+    font-family: var(--mono); font-size: 11px; cursor: pointer;
+    background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(59,130,246,0.15));
+    color: var(--purple); padding: 5px 14px; border-radius: 20px;
+    border: 1px solid rgba(168,85,247,0.25); transition: all .2s;
+  }
+  .test-btn:hover { background: linear-gradient(135deg, rgba(168,85,247,0.25), rgba(59,130,246,0.25)); border-color: rgba(168,85,247,0.4); transform: translateY(-1px); }
+  .test-btn:active { transform: translateY(0); }
 
   /* ── layout ── */
-  .main { display: grid; grid-template-columns: 1fr 340px; gap: 0; height: calc(100vh - 57px); overflow: hidden; }
+  .main { display: grid; grid-template-columns: 1fr 360px; gap: 0; height: calc(100vh - 57px); overflow: hidden; }
   .left { overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-  .right { border-left: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+  .right { border-left: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; background: rgba(13,17,23,0.5); }
 
   /* ── cards ── */
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
+    transition: border-color .2s;
   }
+  .card:hover { border-color: var(--border-hi); }
   .card-header {
     padding: 12px 16px;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
   }
-  .card-title { font-weight: 500; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .card-title { font-weight: 500; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
   .card-body { padding: 16px; }
 
   /* ── metric row ── */
-  .metric-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  .metric-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 12px; }
   .metric {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 14px 16px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+    position: relative; overflow: hidden;
+    transition: border-color .2s, transform .2s;
   }
-  .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-  .metric-val { font-family: var(--mono); font-size: 24px; font-weight: 500; }
-  .metric-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .metric:hover { border-color: var(--border-hi); transform: translateY(-2px); }
+  .metric::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-color, var(--blue)), transparent);
+    opacity: 0.6;
+  }
+  .metric-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .metric-val { font-family: var(--mono); font-size: 26px; font-weight: 500; transition: all .3s; }
+  .metric-sub { font-size: 11px; color: var(--dimmer); margin-top: 4px; }
+  .metric.danger { --accent-color: var(--red); }
   .metric.danger .metric-val { color: var(--red); }
+  .metric.warn { --accent-color: var(--amber); }
   .metric.warn .metric-val { color: var(--amber); }
+  .metric.ok { --accent-color: var(--green); }
   .metric.ok .metric-val { color: var(--green); }
+  .metric.info { --accent-color: var(--blue); }
   .metric.info .metric-val { color: var(--blue); }
+  .metric.tls { --accent-color: var(--cyan); }
+  .metric.tls .metric-val { color: var(--cyan); }
 
   /* ── traffic chart ── */
   #trafficCanvas { width: 100%; display: block; }
+
+  /* ── tabs ── */
+  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 10px 18px; font-size: 12px; color: var(--muted); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all .2s;
+    font-weight: 500;
+  }
+  .tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
 
   /* ── alert list ── */
   .alert-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
   .alert-item {
     display: grid; grid-template-columns: auto 1fr auto;
     gap: 10px; align-items: start;
-    padding: 10px 12px; border-radius: 8px;
+    padding: 10px 12px; border-radius: 10px;
     border: 1px solid var(--border);
     background: var(--surface2);
-    cursor: pointer; transition: border-color .15s;
+    cursor: pointer; transition: all .2s;
   }
-  .alert-item:hover { border-color: var(--border-hi); }
+  .alert-item:hover { border-color: var(--border-hi); background: var(--surface3); transform: translateX(2px); }
   .alert-item.selected { border-color: var(--blue); background: var(--blue-dim); }
-  .sev-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
-  .sev-dot.critical { background: var(--red); box-shadow: 0 0 6px var(--red); }
-  .sev-dot.high { background: var(--amber); }
+  .sev-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .sev-dot.critical { background: var(--red); box-shadow: 0 0 8px var(--red-glow); animation: pulse 2s infinite; }
+  .sev-dot.high { background: var(--amber); box-shadow: 0 0 6px rgba(245,158,11,0.3); }
   .sev-dot.medium { background: var(--blue); }
-  .sev-dot.low { background: var(--muted); }
+  .sev-dot.low { background: var(--dimmer); }
   .alert-main { min-width: 0; }
   .alert-type { font-weight: 500; font-size: 12px; }
   .alert-src { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .score-badge {
     font-family: var(--mono); font-size: 11px; font-weight: 500;
-    padding: 2px 7px; border-radius: 4px;
-    flex-shrink: 0;
+    padding: 3px 8px; border-radius: 6px; flex-shrink: 0;
   }
   .score-badge.critical { background: var(--red-dim); color: var(--red); }
   .score-badge.high { background: var(--amber-dim); color: var(--amber); }
   .score-badge.medium { background: var(--blue-dim); color: var(--blue); }
   .score-badge.low { background: var(--surface); color: var(--muted); }
 
+  /* ── traffic table ── */
+  .traffic-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .traffic-table thead th {
+    position: sticky; top: 0; background: var(--surface);
+    padding: 8px 10px; text-align: left; font-weight: 500;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+    font-size: 10px; border-bottom: 1px solid var(--border);
+  }
+  .traffic-table tbody tr {
+    border-bottom: 1px solid var(--border); transition: background .15s;
+  }
+  .traffic-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+  .traffic-table tbody tr.malicious { background: var(--red-dim); }
+  .traffic-table tbody tr.malicious:hover { background: rgba(239,68,68,0.12); }
+  .traffic-table td { padding: 7px 10px; font-family: var(--mono); font-size: 11px; color: var(--text); white-space: nowrap; }
+  .traffic-wrap { max-height: 250px; overflow-y: auto; }
+  .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+  .tag.benign { background: var(--green-dim); color: var(--green); }
+  .tag.malicious { background: var(--red-dim); color: var(--red); }
+
   /* ── attack type bar chart ── */
   .attack-bars { display: flex; flex-direction: column; gap: 8px; }
   .bar-row { display: flex; align-items: center; gap: 10px; }
-  .bar-label { font-size: 12px; color: var(--muted); width: 100px; flex-shrink: 0; text-align: right; }
-  .bar-track { flex: 1; background: var(--surface2); border-radius: 3px; height: 6px; overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: 3px; transition: width .8s cubic-bezier(.4,0,.2,1); }
-  .bar-count { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 28px; text-align: right; }
+  .bar-label { font-size: 11px; color: var(--muted); width: 90px; flex-shrink: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { flex: 1; background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width .8s cubic-bezier(.4,0,.2,1); }
+  .bar-count { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 32px; text-align: right; }
+
+  /* ── TLS panel ── */
+  .tls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tls-stat { background: var(--surface2); border-radius: 8px; padding: 12px; border: 1px solid var(--border); }
+  .tls-stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .tls-stat-val { font-family: var(--mono); font-size: 18px; font-weight: 500; color: var(--cyan); }
+  .tls-ja3-list { max-height: 120px; overflow-y: auto; }
+  .ja3-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px; }
+  .ja3-hash { color: var(--muted); max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .ja3-count { color: var(--text); font-weight: 500; }
+
+  /* ── blocked IPs ── */
+  .blocked-list { display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; }
+  .blocked-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; border-radius: 8px;
+    background: var(--red-dim); border: 1px solid rgba(239,68,68,0.15);
+    font-family: var(--mono); font-size: 12px;
+  }
+  .unblock-btn {
+    font-size: 10px; padding: 3px 8px; border-radius: 4px;
+    background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.3);
+    color: var(--red); cursor: pointer; transition: all .15s;
+  }
+  .unblock-btn:hover { background: rgba(239,68,68,0.3); }
 
   /* ── right panel ── */
   .panel-header {
     padding: 16px;
     border-bottom: 1px solid var(--border);
-    font-weight: 500; font-size: 13px;
+    font-weight: 600; font-size: 13px;
   }
   .panel-section { padding: 16px; border-bottom: 1px solid var(--border); }
-  .panel-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px; }
+  .panel-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; font-weight: 500; }
 
   /* risk gauge */
   .gauge-wrap { display: flex; align-items: center; justify-content: center; padding: 8px 0; }
@@ -170,43 +269,55 @@
   /* plain-language card */
   .plain-box {
     background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 12px; font-size: 12px;
-    line-height: 1.6; color: var(--text);
+    border-radius: 10px; padding: 14px; font-size: 12px;
+    line-height: 1.7; color: var(--text);
   }
-  .plain-box .what { font-weight: 500; color: var(--amber); margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  .plain-box .what { font-weight: 600; color: var(--amber); margin-bottom: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* TLS detail in right panel */
+  .tls-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tls-detail-item { font-size: 11px; }
+  .tls-detail-item .label { color: var(--muted); font-size: 10px; margin-bottom: 2px; }
+  .tls-detail-item .value { font-family: var(--mono); color: var(--text); word-break: break-all; }
+  .tls-factors { margin-top: 8px; }
+  .tls-factor { font-size: 11px; color: var(--amber); padding: 4px 0; display: flex; align-items: center; gap: 6px; }
+  .tls-factor::before { content: '⚠'; font-size: 10px; }
 
   /* actions */
   .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn {
-    padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border);
+    padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--surface2); color: var(--text); font-family: var(--sans);
-    font-size: 12px; cursor: pointer; transition: all .15s;
+    font-size: 12px; cursor: pointer; transition: all .2s; font-weight: 500;
   }
-  .btn:hover { border-color: var(--border-hi); }
-  .btn.danger { border-color: rgba(239,68,68,.3); color: var(--red); }
-  .btn.danger:hover { background: var(--red-dim); }
+  .btn:hover { border-color: var(--border-hi); transform: translateY(-1px); }
+  .btn.danger { border-color: rgba(239,68,68,.25); color: var(--red); }
+  .btn.danger:hover { background: var(--red-dim); border-color: rgba(239,68,68,.4); }
 
-  /* topology mini map */
-  .topo-map { position: relative; height: 160px; }
-  .topo-node {
-    position: absolute; width: 36px; height: 36px; border-radius: 8px;
-    border: 1px solid var(--border); background: var(--surface2);
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--mono); font-size: 9px; color: var(--muted);
-    text-align: center; line-height: 1.2;
-  }
-  .topo-node.hot { border-color: rgba(239,68,68,.4); box-shadow: 0 0 12px rgba(239,68,68,.15); color: var(--red); }
-  .topo-node.suspect { border-color: rgba(245,158,11,.3); color: var(--amber); }
+
 
   /* scrollbar */
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--surface3); }
 
-  /* timeline mini line */
-  #timelineCanvas { width: 100%; display: block; }
+  .no-sel { color: var(--muted); font-size: 12px; text-align: center; padding: 32px 16px; line-height: 1.6; }
 
-  .no-sel { color: var(--muted); font-size: 12px; text-align: center; padding: 32px 16px; }
+  /* subtle grid bg pattern */
+  .left::before {
+    content: ''; position: fixed; inset: 0; z-index: -1;
+    background-image: radial-gradient(rgba(59,130,246,0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+
+  /* ── responsive ── */
+  @media (max-width: 1100px) {
+    .main { grid-template-columns: 1fr; }
+    .right { border-left: none; border-top: 1px solid var(--border); max-height: 400px; }
+    .metric-row { grid-template-columns: repeat(3, 1fr); }
+  }
 </style>
 </head>
 <body>
@@ -221,9 +332,9 @@
   </div>
   <div class="header-right">
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
-    <div class="stat-pill">Interface: <span id="ifaceLabel">eth0</span></div>
     <div class="stat-pill">Uptime: <span id="uptimeLabel">00:00:00</span></div>
-    <div class="stat-pill">Node: <span>Pi4-SHIELD</span></div>
+    <div class="stat-pill">Blocked: <span id="blockedCount">0</span></div>
+    <button class="test-btn" onclick="fireTestTrigger()">⚡ Test Trigger</button>
   </div>
 </header>
 
@@ -233,9 +344,9 @@
     <!-- Metrics -->
     <div class="metric-row">
       <div class="metric danger">
-        <div class="metric-label">Active threats</div>
+        <div class="metric-label">Active Threats</div>
         <div class="metric-val" id="m-threats">0</div>
-        <div class="metric-sub">last 60 min</div>
+        <div class="metric-sub">alerts triggered</div>
       </div>
       <div class="metric info">
         <div class="metric-label">Flows/sec</div>
@@ -243,61 +354,106 @@
         <div class="metric-sub">current rate</div>
       </div>
       <div class="metric ok">
-        <div class="metric-label">F1 Score</div>
-        <div class="metric-val">0.94</div>
-        <div class="metric-sub">model accuracy</div>
+        <div class="metric-label">Benign</div>
+        <div class="metric-val" id="m-benign">0</div>
+        <div class="metric-sub">safe flows</div>
       </div>
       <div class="metric warn">
-        <div class="metric-label">FP Rate</div>
-        <div class="metric-val">1.2%</div>
-        <div class="metric-sub">false positives</div>
+        <div class="metric-label">Malicious</div>
+        <div class="metric-val" id="m-malicious">0</div>
+        <div class="metric-sub">flagged flows</div>
+      </div>
+      <div class="metric tls">
+        <div class="metric-label">TLS Analyzed</div>
+        <div class="metric-val" id="m-tls">0</div>
+        <div class="metric-sub">JA3 fingerprints</div>
       </div>
     </div>
 
     <!-- Traffic chart -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Traffic volume + anomaly timeline</span>
+        <span class="card-title">Traffic Volume + Anomaly Timeline</span>
         <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">60s window</span>
       </div>
-      <div class="card-body" style="padding:12px 16px 0">
-        <canvas id="trafficCanvas" height="90"></canvas>
+      <div class="card-body" style="padding:12px 16px 8px">
+        <canvas id="trafficCanvas" height="100"></canvas>
       </div>
     </div>
 
-    <!-- Alerts + attack types side by side -->
-    <div style="display:grid;grid-template-columns:1fr 220px;gap:16px">
+    <!-- Tabbed section: Alerts | Traffic | TLS | Blocked -->
+    <div class="card">
+      <div class="tab-bar">
+        <div class="tab active" onclick="switchTab('alerts')">Alert Queue</div>
+        <div class="tab" onclick="switchTab('traffic')">Live Traffic</div>
+        <div class="tab" onclick="switchTab('tls')">TLS Fingerprints</div>
+        <div class="tab" onclick="switchTab('blocked')">Blocked IPs</div>
+      </div>
 
-      <!-- Alert list -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">Alert queue</span>
-          <span id="alertCount" style="font-family:var(--mono);font-size:11px;color:var(--muted)">0 alerts</span>
-        </div>
+      <!-- Alerts Tab -->
+      <div class="tab-content active" id="tab-alerts">
         <div class="card-body" style="padding:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span id="alertCount" style="font-family:var(--mono);font-size:11px;color:var(--muted)">0 alerts</span>
+          </div>
           <div class="alert-list" id="alertList"></div>
         </div>
       </div>
 
-      <!-- Attack type breakdown -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">Attack breakdown</span>
-        </div>
-        <div class="card-body">
-          <div class="attack-bars" id="attackBars"></div>
+      <!-- Traffic Tab -->
+      <div class="tab-content" id="tab-traffic">
+        <div class="traffic-wrap">
+          <table class="traffic-table">
+            <thead><tr>
+              <th>Time</th><th>Source</th><th>Destination</th><th>Proto</th><th>Bytes ↓</th><th>Bytes ↑</th><th>Score</th><th>Status</th>
+            </tr></thead>
+            <tbody id="trafficBody"></tbody>
+          </table>
         </div>
       </div>
 
+      <!-- TLS Tab -->
+      <div class="tab-content" id="tab-tls">
+        <div class="card-body">
+          <div class="tls-grid">
+            <div class="tls-stat">
+              <div class="tls-stat-label">Unique Clients</div>
+              <div class="tls-stat-val" id="tls-unique">0</div>
+            </div>
+            <div class="tls-stat">
+              <div class="tls-stat-label">Threats Found</div>
+              <div class="tls-stat-val" id="tls-threats" style="color:var(--red)">0</div>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="panel-label">Top TLS Fingerprints</div>
+              <div style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(6,182,212,0.1);color:var(--cyan);border:1px solid rgba(6,182,212,0.2)">Abuse.ch Sync Active</div>
+            </div>
+            <div class="tls-ja3-list" id="tlsJa3List">
+              <div style="color:var(--muted);font-size:11px;text-align:center;padding:16px">No TLS data yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Blocked Tab -->
+      <div class="tab-content" id="tab-blocked">
+        <div class="card-body">
+          <div class="blocked-list" id="blockedList">
+            <div style="color:var(--muted);font-size:11px;text-align:center;padding:16px">No IPs currently blocked</div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Network topology -->
+    <!-- Attack types breakdown -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Network topology — suspicious hosts</span>
+        <span class="card-title">Attack Breakdown (Malicious Traffic Distribution)</span>
       </div>
-      <div class="card-body" style="padding:10px">
-        <div class="topo-map" id="topoMap"></div>
+      <div class="card-body">
+        <div class="attack-bars" id="attackBars"></div>
       </div>
     </div>
 
@@ -305,8 +461,8 @@
 
   <!-- Right detail panel -->
   <div class="right" id="rightPanel">
-    <div class="panel-header">Alert Detail</div>
-    <div class="no-sel" id="noSel">Select an alert to inspect</div>
+    <div class="panel-header">🔍 Alert Detail</div>
+    <div class="no-sel" id="noSel">Select an alert from the queue<br/>to inspect its full analysis</div>
     <div id="detailContent" style="display:none"></div>
   </div>
 </div>
@@ -326,93 +482,133 @@ const ATTACK_TYPES = [
 const attackCountsMap = new Map();
 
 let alerts = [];
+let trafficFlows = [];
 let selectedIdx = null;
 let trafficData = Array(60).fill(0);
 let anomalyData = Array(60).fill(0);
-let threats = 0, flows = 0, startTime = Date.now();
+
+const apiBase = window.location.protocol === 'file:' ? 'http://localhost:8000' : '';
+
+// ── tabs ───────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab-content#tab-${name}`).classList.add('active');
+  event.target.classList.add('active');
+}
 
 // ── uptime ─────────────────────────────────────────────────────
-function fmtUptime(ms){
+function fmtUptime(ms) {
   const s=Math.floor(ms/1000),m=Math.floor(s/60)%60,h=Math.floor(s/3600);
   return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+}
+
+function fmtBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
 }
 
 // ── traffic canvas ─────────────────────────────────────────────
 const tCanvas = document.getElementById('trafficCanvas');
 const tCtx = tCanvas.getContext('2d');
-function drawTraffic(){
-  const W=tCanvas.offsetWidth; tCanvas.width=W; tCanvas.height=90;
+function drawTraffic() {
+  const W=tCanvas.offsetWidth; tCanvas.width=W; tCanvas.height=100;
   const max=Math.max(...trafficData,1);
   const sw=W/60;
-  tCtx.clearRect(0,0,W,90);
-  // baseline area
+  tCtx.clearRect(0,0,W,100);
+
+  // gradient fill
   tCtx.beginPath();
-  tCtx.moveTo(0,90);
-  trafficData.forEach((v,i)=>{
-    tCtx.lineTo(i*sw+sw/2, 90-Math.min(v/max,1)*75);
+  tCtx.moveTo(0,100);
+  trafficData.forEach((v,i)=> {
+    tCtx.lineTo(i*sw+sw/2, 100-Math.min(v/max,1)*80);
   });
-  tCtx.lineTo(W,90); tCtx.closePath();
-  const grad=tCtx.createLinearGradient(0,0,0,90);
-  grad.addColorStop(0,'rgba(59,130,246,0.25)');
-  grad.addColorStop(1,'rgba(59,130,246,0.02)');
+  tCtx.lineTo(W,100); tCtx.closePath();
+  const grad=tCtx.createLinearGradient(0,0,0,100);
+  grad.addColorStop(0,'rgba(59,130,246,0.2)');
+  grad.addColorStop(1,'rgba(59,130,246,0.01)');
   tCtx.fillStyle=grad; tCtx.fill();
+
   // line
   tCtx.beginPath();
-  trafficData.forEach((v,i)=>{
-    const x=i*sw+sw/2, y=90-Math.min(v/max,1)*75;
+  trafficData.forEach((v,i)=> {
+    const x=i*sw+sw/2, y=100-Math.min(v/max,1)*80;
     i===0?tCtx.moveTo(x,y):tCtx.lineTo(x,y);
   });
   tCtx.strokeStyle='rgba(59,130,246,0.7)'; tCtx.lineWidth=1.5; tCtx.stroke();
+
+  // glow line
+  tCtx.strokeStyle='rgba(59,130,246,0.15)'; tCtx.lineWidth=6; tCtx.stroke();
+
   // anomaly spikes
-  anomalyData.forEach((v,i)=>{
-    if(v>0){
+  anomalyData.forEach((v,i)=> {
+    if(v>0) {
       const x=i*sw+sw/2;
-      tCtx.beginPath(); tCtx.moveTo(x,90); tCtx.lineTo(x,90-v*70);
-      tCtx.strokeStyle=v>0.7?'rgba(239,68,68,0.8)':'rgba(245,158,11,0.7)';
+      tCtx.beginPath(); tCtx.moveTo(x,100); tCtx.lineTo(x,100-v*80);
+      tCtx.strokeStyle=v>0.7?'rgba(239,68,68,0.8)':'rgba(245,158,11,0.6)';
       tCtx.lineWidth=2; tCtx.stroke();
+      // glow
+      tCtx.strokeStyle=v>0.7?'rgba(239,68,68,0.15)':'rgba(245,158,11,0.1)';
+      tCtx.lineWidth=6; tCtx.stroke();
     }
   });
 }
 
 // ── attack bars ────────────────────────────────────────────────
-function renderBars(){
+function renderBars() {
   const types = Array.from(attackCountsMap.entries()).map(([k, v], i) => {
     let color = '#3b82f6';
     const known = ATTACK_TYPES.find(t => t.name === k);
     if (known) color = known.color;
     else color = ['#3b82f6','#a855f7','#ef4444','#f59e0b','#10b981'][i%5];
     return {name: k, count: v, color: color};
-  });
+  }).sort((a,b) => b.count - a.count);
   const total=types.reduce((a,b)=>a+b.count,1);
   document.getElementById('attackBars').innerHTML=types.map(t=>`
     <div class="bar-row">
-      <div class="bar-label" style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 100px;" title="${t.name}">${t.name}</div>
+      <div class="bar-label" title="${t.name}">${t.name}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${(t.count/total*100).toFixed(1)}%;background:${t.color}"></div></div>
       <div class="bar-count">${t.count}</div>
     </div>`).join('');
 }
 
 // ── alert list ─────────────────────────────────────────────────
-function sevClass(sev){ return sev==='critical'?'critical':sev==='high'?'high':sev==='medium'?'medium':'low'; }
-function renderAlerts(){
+function sevClass(sev) { return sev==='critical'?'critical':sev==='high'?'high':sev==='medium'?'medium':'low'; }
+function renderAlerts() {
   const el=document.getElementById('alertList');
   document.getElementById('alertCount').textContent=alerts.length+' alert'+(alerts.length!==1?'s':'');
-  el.innerHTML=alerts.slice().reverse().map((a,ri)=>{
+  el.innerHTML=alerts.slice().reverse().map((a,ri)=> {
     const i=alerts.length-1-ri;
     const sc=sevClass(a.sev);
     return`<div class="alert-item${selectedIdx===i?' selected':''}" onclick="selectAlert(${i})">
       <div class="sev-dot ${sc}"></div>
       <div class="alert-main">
         <div class="alert-type">${a.type}</div>
-        <div class="alert-src">${a.src} → ${a.dst} [${a.proto}] ${a.time}</div>
+        <div class="alert-src">${a.src} → ${a.dst} ${a.time}</div>
       </div>
       <div class="score-badge ${sc}">${a.score}</div>
     </div>`;
   }).join('');
 }
 
+// ── traffic table ──────────────────────────────────────────────
+function renderTrafficTable() {
+  const tbody = document.getElementById('trafficBody');
+  tbody.innerHTML = trafficFlows.slice(0, 100).map(f => {
+    const ts = f.timestamp ? new Date(f.timestamp * 1000).toTimeString().slice(0,8) : '--';
+    const cls = f.is_malicious ? 'malicious' : '';
+    const tag = f.is_malicious ? '<span class="tag malicious">THREAT</span>' : '<span class="tag benign">OK</span>';
+    return `<tr class="${cls}">
+      <td>${ts}</td><td>${f.src||'?'}</td><td>${f.dst||'?'}</td>
+      <td>${f.proto||'?'}</td><td>${fmtBytes(f.bytes_in||0)}</td><td>${fmtBytes(f.bytes_out||0)}</td>
+      <td>${f.risk_score||0}</td><td>${tag}</td>
+    </tr>`;
+  }).join('');
+}
+
 // ── detail panel ───────────────────────────────────────────────
-function selectAlert(idx){
+function selectAlert(idx) {
   selectedIdx=idx;
   renderAlerts();
   const a=alerts[idx];
@@ -424,21 +620,37 @@ function selectAlert(idx){
   const pct=a.score/100;
   const gaugeR=55, cx=80, cy=70;
   const startA=Math.PI*0.75, endA=Math.PI*2.25;
-  const a1=startA, a2=startA+(endA-startA)*pct;
-  function arc(r,start,end,stroke,width,dash=''){
+  const a2=startA+(endA-startA)*pct;
+  function arc(r,start,end,stroke,width){
     const x1=cx+r*Math.cos(start),y1=cy+r*Math.sin(start);
     const x2=cx+r*Math.cos(end),y2=cy+r*Math.sin(end);
     const large=end-start>Math.PI?1:0;
-    return`<path d="M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" ${dash?`stroke-dasharray="${dash}"`:''}/>`;
+    return`<path d="M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round"/>`;
   }
+
+  const tlsSection = (a.ja3 || a.tls_version || (a.tls_risk_factors && a.tls_risk_factors.length)) ? `
+    <div class="panel-section">
+      <div class="panel-label">🔐 TLS Fingerprint Analysis</div>
+      <div class="tls-detail-grid">
+        ${a.ja3 ? `<div class="tls-detail-item"><div class="label">JA3 Hash</div><div class="value">${a.ja3}</div></div>` : ''}
+        ${a.ja3s ? `<div class="tls-detail-item"><div class="label">JA3S Hash</div><div class="value">${a.ja3s}</div></div>` : ''}
+        ${a.tls_version ? `<div class="tls-detail-item"><div class="label">TLS Version</div><div class="value">${a.tls_version}</div></div>` : ''}
+        ${a.tls_threat ? `<div class="tls-detail-item"><div class="label">Threat Match</div><div class="value" style="color:var(--red);font-weight:500">${a.tls_threat}</div></div>` : ''}
+      </div>
+      ${a.tls_risk_factors && a.tls_risk_factors.length ? `
+      <div class="tls-factors">
+        ${a.tls_risk_factors.map(f => `<div class="tls-factor">${f}</div>`).join('')}
+      </div>` : ''}
+    </div>` : '';
+
   dc.innerHTML=`
     <div class="panel-section">
-      <div class="panel-label">Risk score</div>
+      <div class="panel-label">Risk Score</div>
       <div class="gauge-wrap">
         <svg width="160" height="120" viewBox="0 0 160 120">
           ${arc(gaugeR,Math.PI*0.75,Math.PI*2.25,'#1e293b',8)}
           ${arc(gaugeR,Math.PI*0.75,a2,scoreColor,8)}
-          <text x="${cx}" y="${cy-8}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="26" font-weight="500" fill="${scoreColor}">${a.score}</text>
+          <text x="${cx}" y="${cy-8}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="28" font-weight="500" fill="${scoreColor}">${a.score}</text>
           <text x="${cx}" y="${cy+12}" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" fill="#64748b">${a.sev.toUpperCase()}</text>
           <text x="${cx}" y="${cy+28}" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="10" fill="#3a4560">${a.type}</text>
         </svg>
@@ -451,8 +663,10 @@ function selectAlert(idx){
       </div>
     </div>
 
+    ${tlsSection}
+
     <div class="panel-section">
-      <div class="panel-label">SHAP feature attribution</div>
+      <div class="panel-label">SHAP Feature Attribution</div>
       ${a.shap.map(([label,val])=>`
         <div class="shap-row">
           <div class="shap-label" title="${label}">${label}</div>
@@ -464,7 +678,7 @@ function selectAlert(idx){
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">Plain-language explanation</div>
+      <div class="panel-label">Plain-Language Explanation</div>
       <div class="plain-box">
         <div class="what">What's happening?</div>
         ${a.plain}
@@ -472,26 +686,34 @@ function selectAlert(idx){
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">Response actions</div>
+      <div class="panel-label">Response Actions</div>
       <div class="action-row">
-        <button class="btn danger" onclick="blockAlert(${idx})">Block ${a.src.split(':')[0]}</button>
-        <button class="btn" onclick="ignoreAlert(${idx})">Mark safe</button>
-        <button class="btn" onclick="alert('Quarantine VLAN rule applied')">Quarantine</button>
+        <button class="btn danger" onclick="blockAlert(${idx})">🛡 Block ${a.src.split(':')[0]}</button>
+        <button class="btn" onclick="ignoreAlert(${idx})">✓ Mark Safe</button>
       </div>
     </div>
   `;
 }
 
-function blockAlert(i){
-  alerts[i].blocked=true;
-  const dc=document.getElementById('detailContent');
-  const btn=dc.querySelector('.btn.danger');
-  if(btn){btn.textContent='Blocked ✓';btn.disabled=true;btn.style.opacity='0.5';}
+async function blockAlert(i) {
   const ip = alerts[i].src.split(':')[0];
-  console.log("Blocking IP: ", ip);
-  // Optional: add actual block API integration here
+  try {
+    const res = await fetch(apiBase + '/block/' + ip, {method: 'POST'});
+    const data = await res.json();
+    if (data.success) {
+      alerts[i].blocked=true;
+      const dc=document.getElementById('detailContent');
+      const btn=dc.querySelector('.btn.danger');
+      if(btn){btn.textContent='✓ Blocked';btn.disabled=true;btn.style.opacity='0.5';}
+      fetchBlocked();
+    } else {
+      alert('Already blocked: ' + ip);
+    }
+  } catch(e) {
+    console.error('Block API error:', e);
+  }
 }
-function ignoreAlert(i){
+function ignoreAlert(i) {
   alerts.splice(i,1);
   selectedIdx=null;
   document.getElementById('noSel').style.display='block';
@@ -499,54 +721,110 @@ function ignoreAlert(i){
   renderAlerts();
 }
 
-// ── topology ───────────────────────────────────────────────────
-const TOPO_NODES=[
-  {label:'Router',x:47,y:30,cls:''},
-  {label:'Switch',x:47,y:55,cls:''},
-  {label:'Pi-IDS',x:3,y:55,cls:'ok'},
-  {label:'192.168\n.1.10',x:3,y:75,cls:''},
-  {label:'192.168\n.1.22',x:25,y:75,cls:'suspect'},
-  {label:'192.168\n.1.45',x:47,y:75,cls:''},
-  {label:'192.168\n.1.87',x:69,y:75,cls:'hot'},
-  {label:'WAN',x:69,y:30,cls:''},
-];
-function renderTopo(){
-  const tm=document.getElementById('topoMap');
-  tm.innerHTML=TOPO_NODES.map(n=>`<div class="topo-node ${n.cls}" style="left:${n.x}%;top:${n.y}%">${n.label.replace('\\n','<br>')}</div>`).join('');
+
+
+// ── blocked IPs ────────────────────────────────────────────────
+async function fetchBlocked() {
+  try {
+    const res = await fetch(apiBase + '/blocked');
+    const data = await res.json();
+    const list = data.blocked || [];
+    document.getElementById('blockedCount').textContent = list.length;
+    const el = document.getElementById('blockedList');
+    if (list.length === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:16px">No IPs currently blocked</div>';
+      return;
+    }
+    el.innerHTML = list.map(b => `
+      <div class="blocked-item">
+        <span>${b.ip} <span style="color:var(--muted);font-size:10px">expires in ${b.expires_in}s</span></span>
+        <button class="unblock-btn" onclick="unblockIP('${b.ip}')">Unblock</button>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+async function unblockIP(ip) {
+  try {
+    await fetch(apiBase + '/unblock/' + ip, {method: 'POST'});
+    fetchBlocked();
+  } catch(e) {}
+}
+
+// ── TLS stats ──────────────────────────────────────────────────
+async function fetchTLSStats() {
+  try {
+    const res = await fetch(apiBase + '/tls/stats');
+    const data = await res.json();
+    document.getElementById('tls-unique').textContent = data.unique_ja3_count || 0;
+    document.getElementById('tls-threats').textContent = data.threats_detected || 0;
+    document.getElementById('m-tls').textContent = data.total_fingerprinted || 0;
+    
+    const list = data.top_ja3 || [];
+    const el = document.getElementById('tlsJa3List');
+    if (list.length === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:16px">No TLS data yet</div>';
+      return;
+    }
+    el.innerHTML = list.map(([hash, count]) => `
+      <div class="ja3-item">
+        <span class="ja3-hash" title="${hash}">${hash}</span>
+        <span class="ja3-count">${count}</span>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+// ── test trigger ───────────────────────────────────────────────
+async function fireTestTrigger() {
+  const btn = document.querySelector('.test-btn');
+  btn.textContent = '⚡ Sending...';
+  btn.style.opacity = '0.6';
+  try {
+    await fetch(apiBase + '/test-trigger', {method: 'POST'});
+  } catch(e) { console.error('Test trigger failed:', e); }
+  setTimeout(() => { btn.textContent = '⚡ Test Trigger'; btn.style.opacity = '1'; }, 600);
 }
 
 // ── api integration ────────────────────────────────────────────
 
 async function fetchStats() {
   try {
-    const res = await fetch('http://localhost:8000/stats');
+    const res = await fetch(apiBase + '/stats');
     if (!res.ok) return;
     const data = await res.json();
     
     document.getElementById('uptimeLabel').textContent = fmtUptime(data.uptime_seconds * 1000);
-    flows = data.flows_per_sec;
-    document.getElementById('m-flows').textContent = flows || 0;
-    
-    threats = data.alerts_total;
-    document.getElementById('m-threats').textContent = threats || 0;
+    const flows = data.flows_per_sec || 0;
+    document.getElementById('m-flows').textContent = flows;
+    document.getElementById('m-threats').textContent = data.alerts_total || 0;
+    document.getElementById('m-benign').textContent = data.benign_count || 0;
+    document.getElementById('m-malicious').textContent = data.malicious_count || 0;
 
-    const base = flows || 0;
-    trafficData.shift(); trafficData.push(base);
+    trafficData.shift(); trafficData.push(flows);
     anomalyData.shift(); anomalyData.push(0);
-
     drawTraffic();
-  } catch (err) {
-    console.error("Stats API error:", err);
-  }
+  } catch (err) {}
+}
+
+async function fetchTraffic() {
+  try {
+    const res = await fetch(apiBase + '/traffic?limit=100');
+    const data = await res.json();
+    trafficFlows = data.flows || [];
+    renderTrafficTable();
+  } catch(e) {}
 }
 
 function connectWS() {
-  const ws = new WebSocket('ws://localhost:8000/ws/alerts');
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsHost = window.location.protocol === 'file:' ? 'localhost:8000' : window.location.host;
+  const wsUrl = `${wsProtocol}//${wsHost}/ws/alerts`;
+  const ws = new WebSocket(wsUrl);
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'history' || msg.type === 'alert') {
       const a = msg.data;
-      
       const ts = a.timestamp ? new Date(a.timestamp * 1000) : new Date();
       
       const alert_ = {
@@ -560,9 +838,17 @@ function connectWS() {
         shap: a.top_features || [],
         plain: a.explanation || 'Anomaly detected in traffic pattern.',
         uid: a.uid,
-        blocked: a.should_block || a.ja3_blocked
+        blocked: a.should_block || a.ja3_blocked,
+        ja3: a.ja3 || null,
+        ja3s: a.ja3s || null,
+        tls_version: a.tls_version || null,
+        tls_threat: a.tls_threat || null,
+        tls_risk_factors: a.tls_risk_factors || [],
+        tls_risk_score: a.tls_risk_score || 0,
       };
       
+      if (alert_.type === 'Benign') return;
+
       if (msg.type === 'history') {
          if (!alerts.some(x => x.uid === alert_.uid)) {
            alerts.push(alert_);
@@ -585,17 +871,36 @@ function connectWS() {
       renderAlerts();
       renderBars();
     }
+    
+    if (msg.type === 'flow' || msg.type === 'flow_history') {
+      const f = msg.data;
+      if (!trafficFlows.some(x => x.uid === f.uid)) {
+        trafficFlows.unshift(f);
+        if (trafficFlows.length > 200) trafficFlows.pop();
+        renderTrafficTable();
+      }
+    }
   };
   ws.onclose = () => {
-    console.log("WS closed, reconnecting in 5s...");
-    setTimeout(connectWS, 5000);
+    console.log("WS closed, reconnecting in 3s...");
+    setTimeout(connectWS, 3000);
+  };
+  ws.onerror = () => {
+    ws.close();
   };
 }
 
+// ── init ───────────────────────────────────────────────────────
 renderBars();
-renderTopo();
+
+drawTraffic();
 setInterval(fetchStats, 1000);
+setInterval(fetchBlocked, 5000);
+setInterval(fetchTLSStats, 3000);
+setInterval(fetchTraffic, 2000);
 fetchStats();
+fetchBlocked();
+fetchTLSStats();
 connectWS();
 </script>
 </body>
