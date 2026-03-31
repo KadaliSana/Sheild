@@ -267,7 +267,7 @@ def main():
     parser.add_argument("--mode", choices=["live", "train", "replay"],
                         default="live")
     
-    parser.add_argument("--csv-path", default="data/NF-UQ-NIDS-v2.csv",
+    parser.add_argument("--csv-path", default="models/data/NF-UQ-NIDS-v2.csv",
                         help="Path to the NetFlow CSV dataset for training")
 
     parser.add_argument("--conn-log",   default="models/data/conn.log")

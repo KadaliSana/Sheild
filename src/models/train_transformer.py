@@ -22,9 +22,9 @@ SEQ_LEN = 10          # number of consecutive flows per sequence
 N_FEATURES = 39       # matches features/extractor.py output
 D_MODEL = 64
 NHEAD = 4
-NUM_LAYERS = 2
-BATCH_SIZE = 256
-EPOCHS = 3
+NUM_LAYERS = 4
+BATCH_SIZE = 512
+EPOCHS = 50
 VALIDATION_SPLIT = 0.1
 
 MODEL_DIR = Path("models/artefacts")
@@ -34,7 +34,7 @@ THRESHOLD_PATH = MODEL_DIR / "transformer_threshold.npz"
 
 # ── Dataset Loading ───────────────────────────────────────────────────────────
 
-def load_benign_features(csv_path: str, sample_frac: float = 0.001,
+def load_benign_features(csv_path: str, sample_frac: float = 0.01,
                           chunk_size: int = 1000000) -> np.ndarray:
     """
     Stream the NF-UQ-NIDS CSV, keep only benign traffic (Label==0),
@@ -273,7 +273,7 @@ def main():
         help="Path to the NF-UQ-NIDS CSV dataset"
     )
     parser.add_argument(
-        "--sample-frac", type=float, default=0.001,
+        "--sample-frac", type=float, default=0.01,
         help="Fraction of benign traffic to sample (default: 0.05)"
     )
     parser.add_argument(

@@ -21,15 +21,15 @@ UID_CACHE_TTL_SEC = 120       # how long to keep unmatched uid entries
 MIN_PKTS_THRESHOLD = 3        # ignore single-packet blips
 
 # ── Risk scoring ──────────────────────────────────────────────────────────────
-ALERT_THRESHOLD   = 60        # 0-100; fire alert above this
+ALERT_THRESHOLD   = 65      # 0-100; fire alert above this
 BLOCK_THRESHOLD   = 75        # auto-block above this (if enabled)
 
 # Ensemble weights (must sum to 1.0)
 ENSEMBLE_WEIGHTS = {
-    "isolation_forest": 0.0,
-    "random_forest":    0.50,
-    "transformer":      0.50,
-    "statistical":      0.0,
+    "isolation_forest": 0.05,
+    "random_forest":    0.55,
+    "transformer":      0.35,
+    "statistical":      0.05,
 }
 
 # ── Model artefacts ───────────────────────────────────────────────────────────
